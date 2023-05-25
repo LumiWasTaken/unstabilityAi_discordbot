@@ -12,6 +12,7 @@ import { GenRequest, GenProgressWS } from './types';
 import { queueCommand } from './commands';
 import logger from './logger';
 
+logger.level = 'debug';
 
 let pingInterval: NodeJS.Timeout | null = null;
 
@@ -32,11 +33,12 @@ async function registerSlashCommand() {
             process.exit(1);
         }
 
-        const existingCommands = await guild.commands.fetch();
+        const existingCommands = await client.application?.commands.fetch();
 
-        const existingCommand = existingCommands.find(command => command.name === queueCommand.name);
-        if (!existingCommand) {
-            await guild.commands.set([queueCommand])
+
+    const existingCommand = existingCommands?.find(command => command.name === queueCommand.name);
+    if (!existingCommand) {
+            await client.application?.commands.create(queueCommand);
             logger.info('Slash commands registered successfully!');
         } else {
             await existingCommand.edit(queueCommand);
@@ -98,7 +100,7 @@ function startWebSocket(wsUrl: string) {
 
     ws.on('message', async (data) => {
         const jsonResponse: GenProgressWS = JSON.parse(data.toString());
-
+        logger.debug(jsonResponse)
         if (jsonResponse.data.status === 'FINISHED') {
             // The request has finished processing, so we can find it in the queue and remove it.
             const finishedRequest = serverQueue.get(jsonResponse.id);

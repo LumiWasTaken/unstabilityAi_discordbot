@@ -8,6 +8,11 @@ const transport = pino.transport({
         level: "info",
       },
       {
+        target: 'pino/file',
+        options: { destination: `${__dirname}/../debug.log` },
+        level: "debug",
+      },
+      {
         target: 'pino-pretty',
         level: "info",
         options: { }
