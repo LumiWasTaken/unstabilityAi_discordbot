@@ -1,4 +1,4 @@
-# unstabilityAi_discordbot
+# Unstability.Ai Discord Bot
 
 This is a Discord bot.
 
