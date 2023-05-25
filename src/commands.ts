@@ -97,3 +97,8 @@ export const queueCommand: ApplicationCommandData = {
         },
     ],
 };
+
+export const clearCommand: ApplicationCommandData = {
+    name: 'clear',
+    description: 'clear chat',
+};

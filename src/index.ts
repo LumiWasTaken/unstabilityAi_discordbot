@@ -3,51 +3,58 @@ import {
     IntentsBitField,
     EmbedBuilder,
     CommandInteraction,
-    AttachmentBuilder 
+    AttachmentBuilder, 
+    ChannelType,
+    ApplicationCommandData
 } from 'discord.js';
 import axios from 'axios';
 import WebSocket from 'ws';
 import { config } from 'dotenv';
 import { GenRequest, GenProgressWS } from './types';
-import { queueCommand } from './commands';
+import * as commands from './commands';
 import logger from './logger';
-
 logger.level = 'debug';
+
+
+const slashCommands: ApplicationCommandData[] = [
+    commands.clearCommand,
+    commands.queueCommand
+];
 
 let pingInterval: NodeJS.Timeout | null = null;
 
 config();
 
-async function registerSlashCommand() {
+async function registerSlashCommands() {
     try {
-        if (!process.env.GUILD_ID) {
-            logger.error("NO GUILD_ID SET");
-            process.exit(1);
-        }
-
-
-        const guild = client.guilds.cache.get(process.env.GUILD_ID);
-
-        if (!guild) {
-            logger.error("NO GUILD FOUND");
-            process.exit(1);
-        }
-
-        const existingCommands = await client.application?.commands.fetch();
-
-
-    const existingCommand = existingCommands?.find(command => command.name === queueCommand.name);
-    if (!existingCommand) {
-            await client.application?.commands.create(queueCommand);
-            logger.info('Slash commands registered successfully!');
+      if (!process.env.GUILD_ID) {
+        console.error("NO GUILD_ID SET");
+        process.exit(1);
+      }
+  
+      const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  
+      if (!guild) {
+        console.error("NO GUILD FOUND");
+        process.exit(1);
+      }
+  
+      const existingCommands = await guild.commands.fetch();
+  
+      for (const command of slashCommands) {
+        const existingCommand = existingCommands.find(c => c.name === command.name);
+        if (!existingCommand) {
+          await guild.commands.create(command);
+          console.log(`Slash command "${command.name}" created successfully!`);
         } else {
-            await existingCommand.edit(queueCommand);
-            logger.info('Slash command edited successfully!');
+          await existingCommand.edit(command);
+          console.log(`Slash command "${command.name}" edited successfully!`);
         }
+      }
     } catch (error) {
-        logger.error('Failed to register slash commands:', error);
+      console.error('Failed to register slash commands:', error);
     }
-}
+  }
 
 
 const client = new Client({
@@ -74,6 +81,7 @@ async function fetchWebSocketURL() {
     try {
         const response = await axios.get("https://www.unstability.ai/api/getWebSocketURL", {
             headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0",
                 'cookie': `__Secure-next-auth.session-token=${process.env.SECRET_TOKEN}`
             },
         });
@@ -95,13 +103,13 @@ function startWebSocket(wsUrl: string) {
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send('ping');
             }
-        }, 30000);
+        }, 25000);
     });
 
     ws.on('message', async (data) => {
         const jsonResponse: GenProgressWS = JSON.parse(data.toString());
-        logger.debug(jsonResponse)
         if (jsonResponse.data.status === 'FINISHED') {
+            logger.debug(jsonResponse)
             // The request has finished processing, so we can find it in the queue and remove it.
             const finishedRequest = serverQueue.get(jsonResponse.id);
             if(!finishedRequest) {
@@ -144,6 +152,7 @@ function startWebSocket(wsUrl: string) {
             // Start processing the next request in the queue.
             processNextRequest();
         } else if (jsonResponse.type == "REQUEST") {
+            logger.debug(jsonResponse)
             const localQ = localQueue.get(jsonResponse.id);
             if (localQ) {
                 localQueue.delete(jsonResponse.id);
@@ -232,7 +241,7 @@ client.on('interactionCreate', async (interaction) => {
         const aspectRatioMap: Record<string, { width: number; height: number }> = {
             '3:2': { width: 768, height: 512 },
             '2:3': { width: 512, height: 768 },
-            '1:1': { width: 768, height: 768 },
+            '1:1': { width: 640, height: 640 },
           };
         
         const { width, height } = aspectRatioMap[aspectRatio!] || { width: 768, height: 512 };
@@ -257,17 +266,32 @@ client.on('interactionCreate', async (interaction) => {
           width: width,
         };
 
+        logger.debug(GenRequest)
+
         localQueue.set(Date.now().toString(), { interaction: interaction, GenRequest: GenRequest });
 
         await interaction.reply('Your request has been queued!');
         processNextRequest()
+    } else if (commandName === 'clear') {
+        // Bulk delete previous messages in the channel
+        const channel = interaction.channel;
+        if (!channel || channel.type == ChannelType.DM) return;
+    
+        try {
+          const fetchedMessages = await channel.messages.fetch({ limit: 100 });
+          await channel.bulkDelete(fetchedMessages);
+          await interaction.reply('Bye bye messages x.x.');
+        } catch (error) {
+          console.error('Failed to delete messages:', error);
+          await interaction.reply('Failed to delete messages.'+ error);
+        }
     }
 });
 
 
 client.on('ready', async () => {
     logger.warn(`Logged in as ${client.user?.username}`)
-    await registerSlashCommand();
-  });
+    await registerSlashCommands();
+});
 
 client.login(process.env.DISCORD_TOKEN);
