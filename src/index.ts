@@ -3,20 +3,15 @@ import {
     IntentsBitField,
     EmbedBuilder,
     CommandInteraction,
-    AttachmentBuilder
+    AttachmentBuilder 
 } from 'discord.js';
 import axios from 'axios';
 import WebSocket from 'ws';
-import {
-    config
-} from 'dotenv';
-import {
-    GenRequest,
-    GenProgressWS
-} from './types';
-import {
-    queueCommand
-} from './commands'
+import { config } from 'dotenv';
+import { GenRequest, GenProgressWS } from './types';
+import { queueCommand } from './commands';
+import logger from './logger';
+
 
 let pingInterval: NodeJS.Timeout | null = null;
 
@@ -25,7 +20,7 @@ config();
 async function registerSlashCommand() {
     try {
         if (!process.env.GUILD_ID) {
-            console.error("NO GUILD_ID SET");
+            logger.error("NO GUILD_ID SET");
             process.exit(1);
         }
 
@@ -33,7 +28,7 @@ async function registerSlashCommand() {
         const guild = client.guilds.cache.get(process.env.GUILD_ID);
 
         if (!guild) {
-            console.error("NO GUILD FOUND");
+            logger.error("NO GUILD FOUND");
             process.exit(1);
         }
 
@@ -42,13 +37,13 @@ async function registerSlashCommand() {
         const existingCommand = existingCommands.find(command => command.name === queueCommand.name);
         if (!existingCommand) {
             await guild.commands.set([queueCommand])
-            console.log('Slash commands registered successfully!');
+            logger.info('Slash commands registered successfully!');
         } else {
             await existingCommand.edit(queueCommand);
-            console.log('Slash command edited successfully!');
+            logger.info('Slash command edited successfully!');
         }
     } catch (error) {
-        console.error('Failed to register slash commands:', error);
+        logger.error('Failed to register slash commands:', error);
     }
 }
 
@@ -77,14 +72,13 @@ async function fetchWebSocketURL() {
     try {
         const response = await axios.get("https://www.unstability.ai/api/getWebSocketURL", {
             headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0",
                 'cookie': `__Secure-next-auth.session-token=${process.env.SECRET_TOKEN}`
             },
         });
         const wsUrl = response.data.url;
         return wsUrl;
     } catch (err) {
-        console.error('Failed to fetch WebSocket URL:', err);
+        logger.error('Failed to fetch WebSocket URL:', err);
         return null;
     }
 }
@@ -93,7 +87,7 @@ function startWebSocket(wsUrl: string) {
     const ws = new WebSocket(wsUrl);
 
     ws.on('open', () => {
-        console.log('WebSocket connection established');
+        logger.info('WebSocket connection established');
         // Start sending ping messages every 30 seconds
         pingInterval = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
@@ -109,7 +103,7 @@ function startWebSocket(wsUrl: string) {
             // The request has finished processing, so we can find it in the queue and remove it.
             const finishedRequest = serverQueue.get(jsonResponse.id);
             if(!finishedRequest) {
-                return console.log(`Received finished REQUEST ${jsonResponse.id} which is not in serverQ.`)
+                return logger.warn(`Received finished REQUEST ${jsonResponse.id} which is not in serverQ.`)
             }
             serverQueue.delete(jsonResponse.id);
 
@@ -152,23 +146,23 @@ function startWebSocket(wsUrl: string) {
             if (localQ) {
                 localQueue.delete(jsonResponse.id);
                 serverQueue.set(jsonResponse.id, localQ);
-                console.log(`Moved REQUEST ${jsonResponse.id} from Local Queue to Server Queue`)
+                logger.info(`Moved REQUEST ${jsonResponse.id} from Local Queue to Server Queue`)
             } else {
                 const serverQ = serverQueue.get(jsonResponse.id);
                 if(serverQ) {
-                    console.log(`Received REQUEST for ${jsonResponse.id} which is not in local queue. Already moved to Server Queue`)
+                    logger.warn(`Received REQUEST for ${jsonResponse.id} which is not in local queue. Already moved to Server Queue, duplicate?`)
                 } else {
-                    console.log(`Received REQUEST for ${jsonResponse.id} which is not in local queue.`)
+                    logger.info(`Received REQUEST for ${jsonResponse.id} which is not in local queue.`)
                 }
             }
         } else if(jsonResponse.type == "PROGRESS") {
             if(!serverQueue.get(jsonResponse.id)) return;
-            console.log(`Update on ${jsonResponse.id} status ${jsonResponse.type} progress ${jsonResponse.data.progress}`)
+            logger.info(`Update on ${jsonResponse.id} status ${jsonResponse.type} progress ${jsonResponse.data.progress}`)
         }
     });
 
     ws.on('close', () => {
-        console.log('WebSocket connection closed, reconnecting...');
+        logger.warn('WebSocket connection closed, reconnecting...');
         // Stop sending ping messages
         if (pingInterval) {
             clearInterval(pingInterval);
@@ -178,7 +172,7 @@ function startWebSocket(wsUrl: string) {
     });
 
     ws.on('error', (err) => {
-        console.log('WebSocket error:', err);
+        logger.error('WebSocket error:', err);
     });
 }
 
@@ -187,7 +181,7 @@ async function processNextRequest() {
     // Get the next request from the queue.
     const [nextId, request] = localQueue.entries().next().value;
     localQueue.delete(nextId);
-    console.log(`Processing ${request.GenRequest.prompt}`)
+    logger.info(`Processing ${request.GenRequest.prompt}`)
 
     // Send a request to the API.
     try {
@@ -196,6 +190,7 @@ async function processNextRequest() {
             request.GenRequest,
             {
                 headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0',
                     'cookie': `__Secure-next-auth.session-token=${process.env.SECRET_TOKEN}`,
                 },
             }
@@ -206,7 +201,7 @@ async function processNextRequest() {
 
         localQueue.set(id, request);
     } catch (error) {
-        console.log(`Caught error when processing ${request.GenRequest.prompt} requeueing.`)
+        logger.error(`Caught error when processing ${request.GenRequest.prompt} requeueing.`)
         // Re-queue the request at the front.
         localQueue.set(nextId, request);
     }
@@ -269,7 +264,7 @@ client.on('interactionCreate', async (interaction) => {
 
 
 client.on('ready', async () => {
-    console.log(`Logged in as ${client.user?.username}`)
+    logger.warn(`Logged in as ${client.user?.username}`)
     await registerSlashCommand();
   });
 
