@@ -74,6 +74,8 @@ const maxProcessingCount = 3;
 fetchWebSocketURL().then(wsUrl => {
     if (wsUrl) {
         startWebSocket(wsUrl);
+    } else {
+        setTimeout(() => fetchWebSocketURL(), 15000);
     }
 });
 
@@ -179,7 +181,7 @@ function startWebSocket(wsUrl: string) {
             clearInterval(pingInterval);
             pingInterval = null;
         }
-        setTimeout(() => startWebSocket(wsUrl), 15000);
+        setTimeout(() => fetchWebSocketURL(), 15000);
     });
 
     ws.on('error', (err) => {
