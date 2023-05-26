@@ -261,7 +261,7 @@ client.on('interactionCreate', async (interaction) => {
           lighting_filter_color: "#000000",
           lighting_filter_negative_color: "#ebebeb",
           lighting_filter_strength: lighting_filter_strength || 50,
-          negative_prompt: negativePrompt!,
+          negative_prompt: negativePrompt || "bad hands, horrible fingers, multiple fingers, mutated fingers, fake, painted, 3d, drawn, blurry, ugly, hideous, disgusting, gross, jpeg artifacts, distortion, grainy, Horrible, messy, unbalanced, (fake, drawn), hideous, disgusting, gross, nausea, broken, in pieces",
           prompt: prompt!,
           saturation: saturation || 50,
           style: style || "digital-art",

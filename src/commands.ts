@@ -13,8 +13,8 @@ export const queueCommand: ApplicationCommandData = {
         {
             name: 'negative_prompt',
             type: ApplicationCommandOptionType.String,
-            description: 'The negative prompt for the image',
-            required: true,
+            description: 'The negative prompt for the image (If Skipped a good default is used)',
+            required: false,
         },
         {
             name: 'style',
