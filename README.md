@@ -2,7 +2,9 @@
 
 This is a Discord bot.
 
-Its very simple
+Its very simple.
+It expects you to have the "Premium" plan.
+It only supports the best Sampler (chaotic aka diverse composition)
 
 1. Add bot to your server
 2. Get GuildID of your Server
