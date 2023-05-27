@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  scanner:
+    env_file:
+      - .env
+    image: unstability_discord
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - GUILD_ID=${GUILD_ID}
+      - SECRET_TOKEN=${SECRET_TOKEN}

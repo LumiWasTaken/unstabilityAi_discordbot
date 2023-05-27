@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import {
     Client,
     IntentsBitField,
@@ -66,8 +67,8 @@ interface Request {
     GenRequest: GenRequest;
 }
 
-let localQueue: Map < string, Request > = new Map();
-let serverQueue: Map < string, Request > = new Map();
+const localQueue: Map < string, Request > = new Map();
+const serverQueue: Map < string, Request > = new Map();
 
 const maxProcessingCount = 3;
 
