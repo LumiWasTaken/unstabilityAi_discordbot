@@ -1,4 +1,4 @@
-import { CommandInteraction } from "discord.js";
+import { CommandInteraction, EmbedBuilder, AttachmentBuilder } from "discord.js";
 
 export interface Request {
     interaction: CommandInteraction;
@@ -44,3 +44,16 @@ export interface GenProgressWS {
       fast: boolean;
     };
   }
+
+export interface AccountSettings {
+  token: string;
+  maxProcessingCount: number;
+}
+
+export type ImageReadyHandler = (
+  data: {
+    interaction: CommandInteraction;
+    embeds: EmbedBuilder[];
+    attachments: AttachmentBuilder[];
+  }
+) => void;
