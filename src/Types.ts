@@ -1,10 +1,3 @@
-import { CommandInteraction, EmbedBuilder, AttachmentBuilder } from "discord.js";
-
-export interface Request {
-    interaction: CommandInteraction;
-    GenRequest: GenRequest;
-  }
-
 export interface GenRequest {
     admin: boolean;
     alternate_mode: boolean;
@@ -51,9 +44,6 @@ export interface AccountSettings {
 }
 
 export type ImageReadyHandler = (
-  data: {
-    interaction: CommandInteraction;
-    embeds: EmbedBuilder[];
-    attachments: AttachmentBuilder[];
-  }
+  data: GenProgressWS,
+  longId: string
 ) => void;

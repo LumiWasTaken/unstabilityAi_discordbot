@@ -1,18 +1,22 @@
 // src/ApiClient/AccountManager.ts
 
-import { CommandInteraction, EmbedBuilder, AttachmentBuilder } from 'discord.js';
 import { EventEmitter } from 'events';
-import { Request, AccountSettings, ImageReadyHandler } from '../Types';
+import * as Types from '../Types';
 import Account from './Account';
+import Logger from '../Logger';
 
 
 
-
+type EventsMap = {
+  imageReady: { data: Types.GenProgressWS; localId: string };
+  illegalWords: { illegalWords: string[]; localId: string };
+  requestFailed: { error: Error; localId: string };
+};
 
 class AccountManager extends EventEmitter {
   private accounts: Account[] = [];
 
-  constructor(accountSettingsList: AccountSettings[]) {
+  constructor(accountSettingsList: Types.AccountSettings[]) {
     super();
     for (const settings of accountSettingsList) {
       const account = new Account(settings);
@@ -34,13 +38,12 @@ class AccountManager extends EventEmitter {
     return null;
   }
 
-  public addToQueue(request: Request) {
+  public addToQueue(GenRequest: Types.GenRequest, localId: string) {
     const account = this.getNextAvailableAccount();
     if (account) {
-      account.addToQueue(request);
+      account.addToQueue(GenRequest, localId);
     } else {
-      // Could not find any available accounts
-      // You can either wait and retry or notify the user that all accounts are busy
+      Logger.error("Ooops... No Account available :/")
     }
   }
 
@@ -56,17 +59,15 @@ class AccountManager extends EventEmitter {
     }
   }
 
-  public on(event: 'imageReady', listener: ImageReadyHandler): this {
+  public on<K extends keyof EventsMap>(
+    event: K,
+    listener: (data: EventsMap[K]) => void
+  ): this {
     return super.on(event, listener);
   }
-
-  public emit(
-    event: 'imageReady',
-    data: {
-      interaction: CommandInteraction;
-      embeds: EmbedBuilder[];
-      attachments: AttachmentBuilder[];
-    }
+  public emit<K extends keyof EventsMap>(
+    event: K,
+    data: EventsMap[K]
   ): boolean {
     return super.emit(event, data);
   }
