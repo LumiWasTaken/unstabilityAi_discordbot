@@ -111,8 +111,8 @@ function startWebSocket(wsUrl: string) {
 
     ws.on('message', async (data) => {
         const jsonResponse: GenProgressWS = JSON.parse(data.toString());
+        logger.debug(jsonResponse)
         if (jsonResponse.data.status === 'FINISHED') {
-            logger.debug(jsonResponse)
             // The request has finished processing, so we can find it in the queue and remove it.
             const finishedRequest = serverQueue.get(jsonResponse.id);
             if(!finishedRequest) {
@@ -137,7 +137,8 @@ function startWebSocket(wsUrl: string) {
                 attachments.push(attachment);
                 // Create an embed with the image attached.
                 const embed = new EmbedBuilder()
-                    .setDescription('Here is your image:')
+                    .setDescription('Here is your image')
+                    .addFields([{ name: "Took:", value: `${(jsonResponse.data.finished_at - jsonResponse.data.accepted_at)/1000}s` }])
                     .setColor('#0099ff')
                     .setImage(`attachment://image-${index}.png`)
                     .setTimestamp();
@@ -156,21 +157,13 @@ function startWebSocket(wsUrl: string) {
             processNextRequest();
         } else if (jsonResponse.type == "REQUEST") {
             logger.debug(jsonResponse)
-            const localQ = localQueue.get(jsonResponse.id);
-            if (localQ) {
-                localQueue.delete(jsonResponse.id);
-                serverQueue.set(jsonResponse.id, localQ);
-                logger.info(`Moved REQUEST ${jsonResponse.id} from Local Queue to Server Queue`)
-            } else {
-                const serverQ = serverQueue.get(jsonResponse.id);
-                if(serverQ) {
-                    logger.warn(`Received REQUEST for ${jsonResponse.id} which is not in local queue. Already moved to Server Queue, duplicate?`)
-                } else {
-                    logger.info(`Received REQUEST for ${jsonResponse.id} which is not in local queue.`)
-                }
-            }
+            const serverQ = serverQueue.get(jsonResponse.id);
+
+            if(!serverQ) logger.warn(`Received REQUEST for ${jsonResponse.id} which is not mine?`)
+
         } else if(jsonResponse.type == "PROGRESS") {
-            if(!serverQueue.get(jsonResponse.id)) return;
+            const serverQ = serverQueue.get(jsonResponse.id);
+            if(!serverQ) return;
             logger.info(`Update on ${jsonResponse.id} status ${jsonResponse.type} progress ${jsonResponse.data.progress}`)
         }
     });
@@ -201,8 +194,7 @@ async function processNextRequest() {
     try {
         const response = await axios.post(
             'https://www.unstability.ai/api/submitPrompt',
-            request.GenRequest,
-            {
+            request.GenRequest, {
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/113.0',
                     'cookie': `__Secure-next-auth.session-token=${process.env.SECRET_TOKEN}`,
@@ -213,11 +205,36 @@ async function processNextRequest() {
         const id = response.data.id;
         request.GenRequest.id = id;
 
-        localQueue.set(id, request);
-    } catch (error) {
-        logger.error(`Caught error when processing ${request.GenRequest.prompt} requeueing.`)
-        // Re-queue the request at the front.
-        localQueue.set(nextId, request);
+        serverQueue.set(id, request);
+    } catch (error: any) {
+
+        switch (error.response.status) {
+            case 429:
+                logger.error(`Caught 429 error when processing ${request.GenRequest.prompt}, requeueing after 30 seconds.`);
+                setTimeout(() => localQueue.set(nextId, request), 30000);
+                break;
+            case 400:
+                logger.error(`Caught 429 error when processing ${request.GenRequest.prompt}. Error: ${error.response}`);                
+                await request.interaction.followUp(`Caught 400 error when processing. ${error.response.data.message}`);
+                break;
+            case 401:
+                if (error.response.data && error.response.data.illegalWords) {
+                    const illegalWords: string[] = error.response.data.illegalWords.map(([id, word]: [number, string]) => word);
+                    const forbiddenWordsMessage = `Forbidden words: ${illegalWords.join(", ")}`;
+                    // Send a follow-up reply to the user with the forbidden words.
+                    logger.error(`Caught 401 error when processing ${request.GenRequest.prompt}. ${error.response.data.illegalWords}`);
+                    await request.interaction.followUp(forbiddenWordsMessage);
+                } else {
+                    logger.error(`Caught 401 error when processing ${request.GenRequest.prompt}. ${error.response.data}`);
+                    await request.interaction.followUp(`Huh... ${error.response.data}`);
+                }
+                break;
+            default:
+                logger.error(`Caught error when processing ${request.GenRequest.prompt}. Error: ${error}`);
+                await request.interaction.followUp(`Oops... caught error when sending your request to the API. Your request has NOT been requeued.`);
+                break;
+        }
+        // End Switch
     }
 }
 
@@ -271,10 +288,11 @@ client.on('interactionCreate', async (interaction) => {
         };
 
         logger.debug(GenRequest)
+        
+        await interaction.reply('Your request has been queued!');
 
         localQueue.set(Date.now().toString(), { interaction: interaction, GenRequest: GenRequest });
 
-        await interaction.reply('Your request has been queued!');
         processNextRequest()
     } else if (commandName === 'clear') {
         // Bulk delete previous messages in the channel
