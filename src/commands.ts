@@ -95,6 +95,12 @@ export const queueCommand: ApplicationCommandData = {
             min_value: 1,
             max_value: 4,
         },
+        {
+            name: 'turbo',
+            type: ApplicationCommandOptionType.Boolean,
+            description: 'Turn on Zoomies mode.',
+            required: false
+        },
     ],
 };
 

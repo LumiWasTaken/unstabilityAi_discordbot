@@ -230,6 +230,7 @@ client.on('interactionCreate', async (interaction) => {
         const prompt = interaction.options.get("prompt")?.value?.toString();
         const negativePrompt = interaction.options.get('negative_prompt')?.value?.toString();
         const aspectRatio = interaction.options.get('aspect_ratio')?.value?.toString();
+        const fast = interaction.options.get('turbo')?.value as boolean;
         const detail_pass_strength = parseInt(interaction.options.get('high_frequency_detail')?.value as string, 10);
         const lighting_filter_strength = parseInt(interaction.options.get('sampler_strength')?.value as string, 10);
         const saturation = parseInt(interaction.options.get('saturation')?.value as string, 10);
@@ -247,7 +248,7 @@ client.on('interactionCreate', async (interaction) => {
             '1:1': { width: 640, height: 640 },
           };
         
-        const { width, height } = aspectRatioMap[aspectRatio!] || { width: 768, height: 512 };
+        const { width, height } = aspectRatioMap[aspectRatio!] || { width: 640, height: 640 };
 
         const GenRequest: GenRequest = {
           admin: false,
@@ -255,7 +256,7 @@ client.on('interactionCreate', async (interaction) => {
           aspect_ratio: aspectRatio!,
           count: count || 1,
           detail_pass_strength: detail_pass_strength || 50,
-          fast: false,
+          fast: fast || false,
           genre: genre || "digital-art",
           height: height,
           lighting_filter: "chaotic-composition",
