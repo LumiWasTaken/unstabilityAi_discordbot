@@ -253,7 +253,7 @@ client.on('interactionCreate', async (interaction) => {
         const GenRequest: GenRequest = {
           admin: false,
           alternate_mode: false,
-          aspect_ratio: aspectRatio!,
+          aspect_ratio: aspectRatio || '1:1',
           count: count || 1,
           detail_pass_strength: detail_pass_strength || 50,
           fast: fast || false,
