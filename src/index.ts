@@ -219,7 +219,7 @@ async function processNextRequest() {
                 break;
             case 401:
                 if (error.response.data && error.response.data.illegalWords) {
-                    const illegalWords: string[] = error.response.data.illegalWords.map(([id, word]: [number, string]) => word);
+                    const illegalWords: string[] = error.response.data.illegalWords.map(([, word]: [number, string]) => word);
                     const forbiddenWordsMessage = `Forbidden words: ${illegalWords.join(", ")}`;
                     // Send a follow-up reply to the user with the forbidden words.
                     logger.error(`Caught 401 error when processing ${request.GenRequest.prompt}. ${error.response.data.illegalWords}`);
