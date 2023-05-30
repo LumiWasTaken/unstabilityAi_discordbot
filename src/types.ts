@@ -27,7 +27,7 @@ export interface GenRequest {
   
 export interface GenProgressWS {
     id: string;
-    type: string;
+    type: string;    
     data: {
       progress: string;
       status: string;
@@ -35,5 +35,12 @@ export interface GenProgressWS {
         id: string;
         original: string;
       }>;
+      fast_credit_cost: number;
+      slow_credit_cost: number;
+      accepted_at: number;
+      finished_at: number;
+      requested_at: number;
+      count: number;
+      fast: boolean;
     };
   }
