@@ -3,44 +3,44 @@ import { v4 as uuidv4 } from 'uuid';
 import {
     Client,
     IntentsBitField,
-    ApplicationCommandData,
     ChannelType,
     CommandInteraction,
     AttachmentBuilder,
     EmbedBuilder
   } from 'discord.js';
 import { config } from 'dotenv';
-import * as commands from './Commands';
+import { queueCommand, clearCommand } from './Commands';
 import * as Types from './Types';
 import logger from './Logger';
 import { AccountManager } from './ApiClient'; 
 import axios from 'axios'; 
-  
+import { Queue } from './utils';
+
 logger.level = 'debug';
 
 const interactionsMap = new Map<string, CommandInteraction>();
-const slashCommands: ApplicationCommandData[] = [
-  commands.clearCommand,
-  commands.queueCommand,
-];
-  
-  config();
+
+
+const globalQueue = new Queue<{localId: string, GenRequest: Types.GenRequest}>();
+
+config();
   
 const client = new Client({
   intents: [
     1,
     IntentsBitField.Flags.Guilds,
-    IntentsBitField.Flags.GuildMessages,
+    IntentsBitField.Flags.GuildMessages
   ],
 });
 
 const accountManager = new AccountManager([{
-  token: "12361631283",
+  token: process.env.SECRET_TOKEN!,
   maxProcessingCount: 3,
 }]);
   
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isCommand()) return;
+  if (interaction.guild?.id !== process.env.GUILD_ID) return;
 
   const {
     commandName
@@ -109,8 +109,15 @@ client.on('interactionCreate', async (interaction) => {
     };
 
     // Pass the interaction and settings to the account manager
-    accountManager.addToQueue(GenRequest, localId);
-    interactionsMap.set(localId, interaction);
+    const isQueued = accountManager.addToQueue(GenRequest, localId);
+    if(isQueued) {
+      interactionsMap.set(localId, interaction);
+      interaction.reply("Your request has been queued!")
+    } else {
+      globalQueue.enqueue({GenRequest: GenRequest, localId: localId})
+      interactionsMap.set(localId, interaction);
+      interaction.reply("Your request has been queued, but this might take a while.")
+    }
   } else if (commandName === 'clear') {
     // Bulk delete previous messages in the channel
     const channel = interaction.channel;
@@ -132,7 +139,7 @@ client.on('interactionCreate', async (interaction) => {
 
 client.on('ready', async () => {
   logger.warn(`Logged in as ${client.user?.username}`);
-  //await registerSlashCommands(client);
+ await registerSlashCommands(client);
 });
   
 client.login(process.env.DISCORD_TOKEN);
@@ -151,24 +158,12 @@ async function registerSlashCommands(client: Client) {
       process.exit(1);
     }
 
-    const existingCommands = await guild.commands.fetch();
-
-    for (const command of slashCommands) {
-      const existingCommand = existingCommands.find(c => c.name === command.name);
-      if (!existingCommand) {
-        await guild.commands.create(command);
-        console.log(`Slash command "${command.name}" created successfully!`);
-      } else {
-        await existingCommand.edit(command);
-        console.log(`Slash command "${command.name}" edited successfully!`);
-      }
-    }
+    await client.application?.commands.set([queueCommand, clearCommand]);
+    await guild.commands.set([]);
   } catch (error) {
     console.error('Failed to register slash commands:', error);
   }
 }
-
-
 
 
 accountManager.on('imageReady', async ({ data, localId }) => {
@@ -197,6 +192,17 @@ accountManager.on('imageReady', async ({ data, localId }) => {
 
     await interaction.followUp({ embeds, files: attachments });
     interactionsMap.delete(localId);
+
+
+    // Try to get next
+    if(!accountManager.getNextAvailableAccount()) return;
+    const request = globalQueue.dequeue();
+    if(!request) return;
+    const isQueued = accountManager.addToQueue(request.GenRequest, request.localId);
+    if(!isQueued) {
+      globalQueue.requeueFront({GenRequest: request.GenRequest, localId: request.localId})
+    }
+
   } else {
     logger.error(`Interaction for localId ${localId} not found.`);
   }

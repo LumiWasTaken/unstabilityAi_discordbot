@@ -22,6 +22,7 @@ class Account extends EventEmitter {
   constructor(settings: AccountSettings) {
     super();
     this.settings = settings;
+    this.connect();
   }
 
   private async fetchWebSocketURL(): Promise<string | null> {
@@ -35,7 +36,7 @@ class Account extends EventEmitter {
       const wsUrl = response.data.url;
       return wsUrl;
     } catch (err) {
-      logger.error('Failed to fetch WebSocket URL:', err);
+      logger.error({msg: 'Failed to fetch WebSocket URL:', error: err});
       return null;
     }
   }
@@ -89,7 +90,6 @@ class Account extends EventEmitter {
               return logger.warn(`Received finished REQUEST ${jsonResponse.id} which is not in serverQ.`)
           }
           this.serverQueue.delete(jsonResponse.id);
-
           this.emitImageReady(jsonResponse, finishedRequest.localId)
 
           // Start processing the next request in the queue.
@@ -124,15 +124,10 @@ class Account extends EventEmitter {
   }
 
   private async processNextRequest() {
-    // WebSocket connection check
-    if (
-      !this.isConnected ||
-      this.localQueue.size === 0 ||
-      this.serverQueue.size >= this.settings.maxProcessingCount
-    ) {
-      Logger.warn("Queue full. Not Processing.")
-      return;
-    }
+    if(!this.isConnected) return logger.info("Not Connected. Sleeping.")
+    if(this.localQueue.size === 0) return logger.info("LocalQueue empty. Nothing to process. Sleeping.")
+    if(this.serverQueue.size >= this.settings.maxProcessingCount) return logger.info("Queue full. Not Processing.")
+
     // Get the next request from the queue.
     const [nextId, request] = this.localQueue.entries().next().value;
     this.localQueue.delete(nextId);

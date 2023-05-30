@@ -3,7 +3,7 @@
 import { EventEmitter } from 'events';
 import * as Types from '../Types';
 import Account from './Account';
-import Logger from '../Logger';
+import logger from '../Logger';
 
 
 
@@ -27,7 +27,7 @@ class AccountManager extends EventEmitter {
     }
   }
 
-  private getNextAvailableAccount(): Account | null {
+  public getNextAvailableAccount(): Account | null {
     const availableAccounts = this.accounts.filter(
       (account: Account) =>
         account.getServerQueueSize() < account.getMaxProcessingCount()
@@ -38,12 +38,14 @@ class AccountManager extends EventEmitter {
     return null;
   }
 
-  public addToQueue(GenRequest: Types.GenRequest, localId: string) {
+  public addToQueue(GenRequest: Types.GenRequest, localId: string): boolean {
     const account = this.getNextAvailableAccount();
     if (account) {
       account.addToQueue(GenRequest, localId);
+      return true;
     } else {
-      Logger.error("Ooops... No Account available :/")
+      logger.error("Ooops... No Account available :/")
+      return false;
     }
   }
 
